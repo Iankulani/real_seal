@@ -1,0 +1,124 @@
+# Dockerfile.alpine
+FROM alpine:3.19
+
+LABEL maintainer="Ian Carter Kulani"
+LABEL description="REAL SEAL HT - Advanced Cybersecurity Framework"
+LABEL version="3.0.0"
+
+# Install system dependencies
+RUN apk update && apk add --no-cache \
+    python3 \
+    py3-pip \
+    py3-virtualenv \
+    gcc \
+    python3-dev \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    libpcap-dev \
+    tcpdump \
+    nmap \
+    nmap-scripts \
+    whois \
+    bind-tools \
+    hping3 \
+    arping \
+    net-tools \
+    iproute2 \
+    iptables \
+    openssh-client \
+    openssh-server \
+    git \
+    curl \
+    wget \
+    vim \
+    nano \
+    sudo \
+    bash \
+    zsh \
+    ca-certificates \
+    chromium \
+    chromium-chromedriver \
+    xvfb \
+    && rm -rf /var/cache/apk/*
+
+# Install Signal CLI (optional)
+RUN wget -O /tmp/signal-cli.zip https://github.com/AsamK/signal-cli/releases/download/v0.12.1/signal-cli-0.12.1.zip \
+    && unzip /tmp/signal-cli.zip -d /opt/ \
+    && ln -s /opt/signal-cli-0.12.1/bin/signal-cli /usr/local/bin/signal-cli \
+    && rm /tmp/signal-cli.zip
+
+# Create app directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python packages
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir \
+    flask==2.3.3 \
+    flask-cors==4.0.0 \
+    flask-socketio==5.3.4 \
+    requests==2.31.0 \
+    psutil==5.9.6 \
+    cryptography==41.0.7 \
+    paramiko==3.4.0 \
+    scp==0.13.6 \
+    discord.py==2.3.2 \
+    telethon==1.34.0 \
+    slack-sdk==3.23.0 \
+    selenium==4.15.2 \
+    webdriver-manager==4.0.1 \
+    scapy==2.5.0 \
+    python-whois==0.8.0 \
+    dnspython==2.4.2 \
+    qrcode==7.4.2 \
+    pyshorteners==1.0.1 \
+    pynput==1.7.6 \
+    google-api-python-client==2.100.0 \
+    google-auth-httplib2==0.1.1 \
+    google-auth-oauthlib==1.1.0 \
+    python-dotenv==1.0.0 \
+    colorama==0.4.6 \
+    pyyaml==6.0.1 \
+    pillow==10.1.0 \
+    beautifulsoup4==4.12.2 \
+    lxml==4.9.3
+
+# Copy application files
+COPY real_seal.py .
+COPY .env .
+
+# Create necessary directories
+RUN mkdir -p .real_seal .real_seal/reports .real_seal/phishing_pages \
+    .real_seal/keylogs .real_seal/ssh_keys .real_seal/wordlists \
+    .real_seal/traffic_logs .real_seal/spoof_logs .real_seal/captured_credentials \
+    /var/log/real_seal /var/lib/real_seal
+
+# Create entrypoint script
+RUN echo '#!/bin/bash\n\
+if [ ! -f .env ]; then\n\
+    echo "REAL_SEAL_API_KEY=$(openssl rand -hex 32)" > .env\n\
+    echo "REAL_SEAL_ADMIN_USER=admin" >> .env\n\
+    echo "REAL_SEAL_LOG_LEVEL=INFO" >> .env\n\
+fi\n\
+if [ ! -f .real_seal/.master_key ]; then\n\
+    python3 -c "import os; from cryptography.fernet import Fernet; open(\".real_seal/.master_key\", \"wb\").write(Fernet.generate_key())"\n\
+fi\n\
+exec python3 real_seal.py "$@"\n' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+# Expose ports
+EXPOSE 5000 8080 22 5900
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV DISPLAY=:99
+ENV REAL_SEAL_MODE=docker
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:5000/ || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["--help"]

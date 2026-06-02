@@ -1,0 +1,79 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  real-seal:
+    build: .
+    container_name: real_seal
+    restart: unless-stopped
+    ports:
+      - "5000:5000"    # Web interface
+      - "8080:8080"    # Phishing server
+      - "2222:22"      # SSH (optional)
+    volumes:
+      - real_seal_data:/app/.real_seal
+      - real_seal_logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - REAL_SEAL_API_KEY=${REAL_SEAL_API_KEY}
+      - REAL_SEAL_ADMIN_USER=${REAL_SEAL_ADMIN_USER:-admin}
+      - REAL_SEAL_ADMIN_PASS=${REAL_SEAL_ADMIN_PASS}
+      - REAL_SEAL_LOG_LEVEL=${REAL_SEAL_LOG_LEVEL:-INFO}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - GOOGLE_CHAT_CREDENTIALS=${GOOGLE_CHAT_CREDENTIALS}
+    networks:
+      - real_seal_network
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional PostgreSQL for production
+  postgres:
+    image: postgres:15-alpine
+    container_name: real_seal_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=real_seal
+      - POSTGRES_USER=real_seal
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - real_seal_network
+    profiles:
+      - production
+
+  # Optional Redis for session management
+  redis:
+    image: redis:7-alpine
+    container_name: real_seal_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - real_seal_network
+    profiles:
+      - production
+
+volumes:
+  real_seal_data:
+  real_seal_logs:
+  postgres_data:
+  redis_data:
+
+networks:
+  real_seal_network:
+    driver: bridge

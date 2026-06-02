@@ -1,0 +1,91 @@
+# docker-compose.prod.yml
+version: '3.8'
+
+services:
+  real-seal:
+    image: ${CI_REGISTRY_IMAGE}:${TAG:-latest}
+    restart: always
+    ports:
+      - "127.0.0.1:5000:5000"
+    environment:
+      - REAL_SEAL_MODE=production
+      - REAL_SEAL_LOG_LEVEL=WARNING
+    volumes:
+      - real_seal_data:/app/.real_seal
+      - real_seal_logs:/var/log/real_seal
+    deploy:
+      mode: replicated
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - real-seal
+    deploy:
+      mode: replicated
+      replicas: 1
+
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      - POSTGRES_DB=real_seal
+      - POSTGRES_USER=real_seal
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    secrets:
+      - db_password
+    deploy:
+      mode: replicated
+      replicas: 1
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    deploy:
+      mode: replicated
+      replicas: 1
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+
+volumes:
+  real_seal_data:
+    driver: local
+  real_seal_logs:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

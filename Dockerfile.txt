@@ -1,0 +1,57 @@
+# Dockerfile
+FROM python:3.11-slim-bookworm
+
+LABEL maintainer="Ian Carter Kulani"
+LABEL description="REAL SEAL HT - Advanced Cybersecurity Framework"
+LABEL version="3.0.0"
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    libffi-dev \
+    libssl-dev \
+    libpcap-dev \
+    net-tools \
+    iproute2 \
+    iptables \
+    nmap \
+    whois \
+    dnsutils \
+    hping3 \
+    arping \
+    openssh-client \
+    curl \
+    wget \
+    vim \
+    sudo \
+    chromium \
+    chromium-driver \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Signal CLI
+RUN wget -O /tmp/signal-cli.zip https://github.com/AsamK/signal-cli/releases/download/v0.12.1/signal-cli-0.12.1.zip \
+    && unzip /tmp/signal-cli.zip -d /opt/ \
+    && ln -s /opt/signal-cli-0.12.1/bin/signal-cli /usr/local/bin/signal-cli \
+    && rm /tmp/signal-cli.zip
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+COPY real_seal.py .
+COPY .env .
+
+RUN mkdir -p .real_seal .real_seal/reports .real_seal/phishing_pages .real_seal/keylogs .real_seal/ssh_keys
+
+EXPOSE 5000 8080
+
+ENV PYTHONUNBUFFERED=1
+ENV REAL_SEAL_MODE=docker
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python3 -c "import requests; requests.get('http://localhost:5000')" || exit 1
+
+ENTRYPOINT ["python3", "real_seal.py"]

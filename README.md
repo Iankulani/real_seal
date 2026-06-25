@@ -34,4 +34,5 @@ python real_seal.py
 ```
 # Star History
 
+[![Star History Chart](https://api.star-history.com/svg?repos=Iankulani/real_seal&type=Date)](https://star-history.com/#Iankulani/real_seal&Date)
     
